@@ -2,12 +2,12 @@
   "name": "department-of-war",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "postinstall": "npx playwright install --with-deps chromium"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "playwright": "^1.55.1"
+    "playwright": "^1.45.2"
   }
 }
