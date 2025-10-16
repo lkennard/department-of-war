@@ -1,16 +1,13 @@
 {
-  "name": "gov-signal-api",
+  "name": "department-of-war",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.19.2",
-    "p-queue": "^7.4.1",
     "playwright": "^1.55.1"
   }
 }
