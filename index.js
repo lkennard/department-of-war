@@ -195,7 +195,7 @@ function parseAwardsFromText(text, ctx) {
       continue;
     }
 
-    if (/^editor[’']s note|^today[’']s department/i.test(line)) continue;
+    if (/^editor['']s note|^today['']s department/i.test(line)) continue;
 
     const amt = parseAmount(line);
     const vendors = parseVendors(line);
@@ -315,22 +315,78 @@ app.post('/contract-detail', async (req, res) => {
     });
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(1000);
+    
+    // Wait for page to load
+    await page.waitForTimeout(2000);
+
+    // Try to close any subscription popups
+    await page.evaluate(() => {
+      const closeSelectors = [
+        'button[aria-label="Close"]',
+        '.modal-close',
+        '.close-button',
+        '[data-dismiss="modal"]',
+        'button.close'
+      ];
+      closeSelectors.forEach(sel => {
+        const btns = document.querySelectorAll(sel);
+        btns.forEach(btn => {
+          try { btn.click(); } catch {}
+        });
+      });
+    });
+
+    await page.waitForTimeout(500);
 
     const content = await page.evaluate(() => {
-      const el =
-        document.querySelector('.article-content') ||
-        document.querySelector('article') ||
-        document.querySelector('.body-copy') ||
-        document.querySelector('main') ||
-        document.querySelector('.content') ||
-        document.body;
-      return el.innerText;
+      // Remove unwanted elements
+      const unwanted = [
+        'nav',
+        'header',
+        'footer',
+        '.navigation',
+        '.breadcrumb',
+        '.social-share',
+        '.subscribe-modal',
+        '[role="navigation"]',
+        '.menu',
+        '.site-header',
+        '.site-footer'
+      ];
+      
+      unwanted.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => {
+          try { el.remove(); } catch {}
+        });
+      });
+      
+      // Try to find main content with better selectors
+      const contentSelectors = [
+        '.body-copy',
+        '.article-body',
+        '[class*="article-content"]',
+        'article .content',
+        '#main-content',
+        'main article',
+        'main',
+        '.main'
+      ];
+      
+      for (const sel of contentSelectors) {
+        const el = document.querySelector(sel);
+        if (el && el.innerText && el.innerText.length > 500) {
+          return el.innerText;
+        }
+      }
+      
+      // Fallback: get body content
+      return document.body.innerText;
     });
 
     const title = await page.title();
     await context.close();
 
+    console.log(`Scraped ${url}: ${content.length} characters`);
     res.json({ success: true, url, title, content: String(content || '').trim() });
   } catch (error) {
     if (context) {
@@ -382,17 +438,35 @@ app.post('/ingest', async (req, res) => {
 
       try {
         await page.goto(it.link, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(2000);
+
+        // Try to close popups
+        await page.evaluate(() => {
+          const closeSelectors = ['button[aria-label="Close"]', '.modal-close', '.close-button'];
+          closeSelectors.forEach(sel => {
+            const btns = document.querySelectorAll(sel);
+            btns.forEach(btn => { try { btn.click(); } catch {} });
+          });
+        });
+
+        await page.waitForTimeout(500);
 
         const readable = await page.evaluate(() => {
-          const el =
-            document.querySelector('.article-content') ||
-            document.querySelector('article') ||
-            document.querySelector('.body-copy') ||
-            document.querySelector('main') ||
-            document.querySelector('.content') ||
-            document.body;
-          return el.innerText;
+          // Remove unwanted elements
+          const unwanted = ['nav', 'header', 'footer', '.navigation', '.subscribe-modal'];
+          unwanted.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => { try { el.remove(); } catch {} });
+          });
+
+          // Find main content
+          const contentSelectors = ['.body-copy', '.article-body', 'article .content', 'main'];
+          for (const sel of contentSelectors) {
+            const el = document.querySelector(sel);
+            if (el && el.innerText && el.innerText.length > 500) {
+              return el.innerText;
+            }
+          }
+          return document.body.innerText;
         });
 
         const events = parseAwardsFromText(readable, it);
